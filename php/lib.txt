@@ -1,0 +1,2 @@
+1.PHPMailer		发送邮件	https://github.com/PHPMailer/PHPMailer
+2.PHPexcel		操作Excel	https://github.com/PHPOffice/PHPExcel （其他可以参考 https://github.com/PHPOffice）
