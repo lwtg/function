@@ -602,6 +602,7 @@ function downloadFile(string $filePath, string $fancyName = '', bool $forceDownl
 /**
  * 文件上传
  * @param string $uploadPath 上传目录
+ * @param string $uploadFileName 上传文件的表单名称, 例如: <input type="file" name="file">，用于全局数组$_FILES[$uploadFileName]取值
  * @param string $newFileName 上传后的文件名, 不包含扩展名
  * @param array $allowedTypes 允许上传的文件类型, 例如: ['jpg', 'png', 'gif'],为空表示受默认类型限制
  * @param int $maxSize 上传文件大小, 0表示受默认大小限制
@@ -618,9 +619,10 @@ function downloadFile(string $filePath, string $fancyName = '', bool $forceDownl
  * -1 上传目录不存在或不可写,
  * -2 上传文件类型不允许,
  * -3 上传文件大小超过限制,
+ * -8 上传文件失败,捕获的异常报错信息
  * -9 上传文件移动失败
  */
-function upload(string $uploadPath, string $newFileName = '', array $allowedTypes = [], int $maxSize = 0): array
+function upload(string $uploadPath, string $uploadFileName = '', string $newFileName = '', array $allowedTypes = [], int $maxSize = 0): array
 {
     // 文件上传目录是否可写
     $result = ['code' => 0, 'msg' => 'ok'];
@@ -635,10 +637,16 @@ function upload(string $uploadPath, string $newFileName = '', array $allowedType
     // 默认允许上传的文件大小，单位为字节
     $defaultMaxSize = 1024 * 1024;
 
+    $uploadFileName = $uploadFileName ?: 'file';
+    if (!isset($_FILES[$uploadFileName])) {
+        // 上传文件不存在 code: 4
+
+        return ['code' => 4, 'msg' => 'No file was uploaded.'];
+    }
     // 检查上传文件是否存在错误
-    if ($_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+    if ($_FILES[$uploadFileName]['error'] !== UPLOAD_ERR_OK) {
         // 上传文件出错
-        switch ($_FILES['file']['error']) {
+        switch ($_FILES[$uploadFileName]['error']) {
             case UPLOAD_ERR_INI_SIZE:
                 // 上传文件大小超过了php.ini中upload_max_filesize选项限制的值 code: 1
                 $result['code'] = 1;
@@ -693,13 +701,13 @@ function upload(string $uploadPath, string $newFileName = '', array $allowedType
     }
 
     // 检查上传文件类型是否允许
-    $fileType = pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION);
+    $fileType = pathinfo($_FILES[$uploadFileName]['name'], PATHINFO_EXTENSION);
     if ((!empty($allowedTypes) && !in_array($fileType, $allowedTypes)) || (empty($allowedTypes) && !in_array($fileType, $defaultAllowedTypes))) {
         return ['code' => -2, 'msg' => 'The file type is not allowed'];
     }
 
     // 检查上传文件大小是否超过限制
-    if (($maxSize && $_FILES['file']['size'] > $maxSize) || (!$maxSize && $_FILES['file']['size'] > $defaultMaxSize)) {
+    if (($maxSize && $_FILES[$uploadFileName]['size'] > $maxSize) || (!$maxSize && $_FILES[$uploadFileName]['size'] > $defaultMaxSize)) {
         return ['code' => -3, 'msg' => 'The file size exceeds the limit'];
     }
 
@@ -707,8 +715,16 @@ function upload(string $uploadPath, string $newFileName = '', array $allowedType
     $newFileName = $newFileName === '' ?  uniqid() . '.' . $fileType : $newFileName . '.' . $fileType;
 
     // 移动上传文件到指定目录
-    if (!move_uploaded_file($_FILES['file']['tmp_name'], $uploadPath . $newFileName)) {
-        return ['code' => -9, 'msg' => 'The file upload failed'];
+    try {
+        // 如果 from 不是合法的上传文件，不会出现任何操作，move_uploaded_file() 将返回 false
+        if (!move_uploaded_file($_FILES[$uploadFileName]['tmp_name'], $uploadPath . $newFileName)) {
+            return ['code' => -9, 'msg' => 'The file upload failed'];
+        }
+    } catch (Exception $e) {
+        // 如果 from 是合法的上传文件，但出于某些原因无法移动，不会出现任何操作，move_uploaded_file() 将返回 false。此外还会发出一条警告
+        // 上传文件移动失败 code: -8, 这个信息不要直接返回给用户
+        return ['code' => -8, 'msg' => $e->getCode().' '.$e->getMessage().' '.$e->getFile().' '.$e->getLine()];
     }
+
     return $result;
 }
