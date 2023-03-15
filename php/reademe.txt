@@ -13,4 +13,5 @@
 13.getFormatSize	获取格式化后的文件大小
 14.getRandStr 		获取随机字符串
 15.tail 			读取文件最后几行
-14.downloadFile  	大文件下载
+16.downloadFile  	大文件下载
+17.upload			文件上传

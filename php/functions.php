@@ -598,3 +598,117 @@ function downloadFile(string $filePath, string $fancyName = '', bool $forceDownl
 
     return true;
 }
+
+/**
+ * 文件上传
+ * @param string $uploadPath 上传目录
+ * @param string $newFileName 上传后的文件名, 不包含扩展名
+ * @param array $allowedTypes 允许上传的文件类型, 例如: ['jpg', 'png', 'gif'],为空表示受默认类型限制
+ * @param int $maxSize 上传文件大小, 0表示受默认大小限制
+ * @return array
+ * @example code: 0 ok,
+ * 1 上传文件大小超过了php.ini中upload_max_filesize选项限制的值,
+ * 2 上传文件大小超过了HTML表单中MAX_FILE_SIZE选项指定的值,
+ * 3 文件只有部分被上传,
+ * 4 没有文件被上传,
+ * 6 找不到临时文件夹,
+ * 7 文件写入失败,
+ * 8 上传文件被PHP扩展程序中断,
+ * 12 未知错误
+ * -1 上传目录不存在或不可写,
+ * -2 上传文件类型不允许,
+ * -3 上传文件大小超过限制,
+ * -9 上传文件移动失败
+ */
+function upload(string $uploadPath, string $newFileName = '', array $allowedTypes = [], int $maxSize = 0): array
+{
+    // 文件上传目录是否可写
+    $result = ['code' => 0, 'msg' => 'ok'];
+    if (!is_writable($uploadPath)) {
+        // 上传目录不存在或不可写 code: -1
+        return ['code' => -1, 'msg' => 'The file upload directory cannot be written'];
+    }
+
+    // 默认允许上传的文件类型
+    $defaultAllowedTypes = ['jpg', 'jpeg', 'png', 'gif', 'xls', 'xlsx', 'ppt', 'pptx', 'md'];
+
+    // 默认允许上传的文件大小，单位为字节
+    $defaultMaxSize = 1024 * 1024;
+
+    // 检查上传文件是否存在错误
+    if ($_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        // 上传文件出错
+        switch ($_FILES['file']['error']) {
+            case UPLOAD_ERR_INI_SIZE:
+                // 上传文件大小超过了php.ini中upload_max_filesize选项限制的值 code: 1
+                $result['code'] = 1;
+                $result['msg'] = 'The uploaded file exceeds the upload_max_filesize directive in php.ini.';
+
+                break;
+            case UPLOAD_ERR_FORM_SIZE:
+                // 上传文件大小超过了HTML表单中MAX_FILE_SIZE选项指定的值 code: 2
+                $result['code'] = 2;
+                $result['msg'] = 'The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form.';
+
+                break;
+            case UPLOAD_ERR_PARTIAL:
+                // 文件只有部分被上传 code: 3
+                $result['code'] = 3;
+                $result['msg'] = 'The uploaded file was only partially uploaded.';
+
+                break;
+            case UPLOAD_ERR_NO_FILE:
+                // 没有文件被上传 code: 4
+                $result['code'] = 4;
+                $result['msg'] = 'No file was uploaded.';
+
+                break;
+            case UPLOAD_ERR_NO_TMP_DIR:
+                // 找不到临时文件夹 code: 6
+                $result['code'] = 6;
+                $result['msg'] = 'Missing a temporary folder. Introduced in PHP 4.3.10 and PHP 5.0.3.';
+
+                break;
+            case UPLOAD_ERR_CANT_WRITE:
+                // 文件写入失败 code: 7
+                $result['code'] = 7;
+                $result['msg'] = 'Failed to write file to disk. Introduced in PHP 5.1.0.';
+
+                break;
+            case UPLOAD_ERR_EXTENSION:
+                // 上传文件被PHP扩展程序中断 code: 8
+                $result['code'] = 8;
+                $result['msg'] = 'File upload stopped by extension. Introduced in PHP 5.2.0.';
+
+                break;
+            default:
+                // 未知错误 code: 12
+                $result['code'] = 12;
+                $result['msg'] = 'Unknown error';
+
+                break;
+        }
+
+        return $result;
+    }
+
+    // 检查上传文件类型是否允许
+    $fileType = pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION);
+    if ((!empty($allowedTypes) && !in_array($fileType, $allowedTypes)) || (empty($allowedTypes) && !in_array($fileType, $defaultAllowedTypes))) {
+        return ['code' => -2, 'msg' => 'The file type is not allowed'];
+    }
+
+    // 检查上传文件大小是否超过限制
+    if (($maxSize && $_FILES['file']['size'] > $maxSize) || (!$maxSize && $_FILES['file']['size'] > $defaultMaxSize)) {
+        return ['code' => -3, 'msg' => 'The file size exceeds the limit'];
+    }
+
+    // 生成新的文件名
+    $newFileName = $newFileName === '' ?  uniqid() . '.' . $fileType : $newFileName . '.' . $fileType;
+
+    // 移动上传文件到指定目录
+    if (!move_uploaded_file($_FILES['file']['tmp_name'], $uploadPath . $newFileName)) {
+        return ['code' => -9, 'msg' => 'The file upload failed'];
+    }
+    return $result;
+}
