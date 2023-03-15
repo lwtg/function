@@ -11,3 +11,4 @@
 11.readAllDir		遍历文件
 12.getExtension		获取文件名后缀
 13.getFormatSize	获取格式化后的文件大小
+14.downloadFile  大文件下载
